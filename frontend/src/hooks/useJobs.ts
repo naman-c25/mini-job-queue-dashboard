@@ -29,7 +29,7 @@ function toMessage(error: unknown): string {
  *    truthful while a status filter is applied.
  */
 export function useJobs() {
-  const [filter, setFilter] = useState<StatusFilter>('all');
+  const [filter, setFilterState] = useState<StatusFilter>('all');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [counts, setCounts] = useState<JobStatusCounts>(EMPTY_COUNTS);
 
@@ -55,7 +55,6 @@ export function useJobs() {
   const refresh = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
       const requestId = ++latestRequest.current;
-      if (!silent) setLoading(true);
 
       try {
         const [nextJobs, nextCounts] = await Promise.all([listJobs(filter), fetchStats()]);
@@ -78,8 +77,29 @@ export function useJobs() {
     [filter],
   );
 
+  /**
+   * Raising `loading` happens here, at the click that causes the reload, rather
+   * than inside the fetching effect. `loading` starts `true` for the first
+   * load, so the effect below never has to set it synchronously.
+   */
+  const setFilter = useCallback((next: StatusFilter) => {
+    setLoading(true);
+    setFilterState(next);
+  }, []);
+
+  /** Re-run a load that failed, from the error state's retry button. */
+  const retry = useCallback(() => {
+    setLoading(true);
+    void refresh();
+  }, [refresh]);
+
   // Initial load, and a reload whenever the filter changes.
   useEffect(() => {
+    // The lint rule cannot see across the `await` inside `refresh`: every
+    // setState it performs happens after the request resolves, so none of them
+    // run synchronously during this effect. The flag that *would* have been
+    // synchronous is raised in `setFilter` and `retry` instead.
+    // oxlint-disable-next-line react/set-state-in-effect
     void refresh();
   }, [refresh]);
 
@@ -195,5 +215,6 @@ export function useJobs() {
     changeStatus,
     remove,
     refresh,
+    retry,
   };
 }

@@ -23,6 +23,7 @@ export default function App() {
     create,
     changeStatus,
     remove,
+    retry,
   } = useJobs();
 
   function handleDelete(job: Job) {
@@ -83,6 +84,9 @@ export default function App() {
               <strong>Could not load jobs.</strong>
             </p>
             <p className="state__detail">{error}</p>
+            <button type="button" className="button" onClick={retry}>
+              Try again
+            </button>
           </div>
         ) : jobs.length === 0 ? (
           <p className="state state--empty">
