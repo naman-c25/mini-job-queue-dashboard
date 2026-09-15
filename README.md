@@ -6,9 +6,9 @@ Jobs move through a fixed lifecycle, and the interesting part of this project is
 
 | | |
 |---|---|
-| **Live dashboard** | _(filled in after deploy)_ |
-| **Live API** | _(filled in after deploy)_ |
-| **Repository** | _(filled in after deploy)_ |
+| **Live dashboard** | _(deploying)_ |
+| **Live API** | _(deploying)_ |
+| **Repository** | <https://github.com/naman-c25/mini-job-queue-dashboard> |
 
 ---
 
