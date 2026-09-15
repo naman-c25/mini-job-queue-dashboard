@@ -1,0 +1,36 @@
+# Render blueprint: deploys both halves of the project from this one repo.
+#
+# In the Render dashboard: New > Blueprint > pick this repository. Render reads
+# this file and creates both services. The two `sync: false` variables are
+# prompted for during setup rather than being committed here.
+services:
+  - type: web
+    name: job-queue-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/main.js
+    # Render restarts the service if this stops returning 200. The endpoint
+    # checks the database round-trip, not just that the process is alive.
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Postgres connection string — set during blueprint setup.
+      - key: DATABASE_URL
+        sync: false
+      # Set to the deployed dashboard's origin once it exists.
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: web
+    name: job-queue-dashboard
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Base URL of the API service above, no trailing slash.
+      - key: VITE_API_URL
+        sync: false
