@@ -199,7 +199,7 @@ And on the client: every `409` triggers an immediate re-sync, so a tab that lost
 
 **Why this one.** A job queue's most common production question is *"what happened to this job?"* — why did it fail, when did it start, did it get stuck. A bare `status` column answers none of that: it only ever shows the latest value, and overwrites its own history. One small table turns the queue from a thing you look at into a thing you can debug.
 
-It also does real work for correctness here. Because the audit row is written in the same transaction as the compare-and-swap, the trail is a genuine record of what committed, which is exactly how the race test above proves only one request won — six requests, one audit row.
+It also does real work for correctness here. Because the audit row is written in the same transaction as the compare-and-swap, the trail is a genuine record of what committed, which is exactly how the race test above proves only one request won — eight simultaneous requests, one audit row.
 
 ```bash
 curl $API/jobs/$ID/transitions
