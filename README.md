@@ -6,9 +6,11 @@ Jobs move through a fixed lifecycle, and the interesting part of this project is
 
 | | |
 |---|---|
-| **Live dashboard** | _(deploying)_ |
-| **Live API** | _(deploying)_ |
+| **Live dashboard** | <https://mini-job-queue-dashboard-ebon.vercel.app> |
+| **Live API** | <https://mini-job-queue-api.vercel.app> |
 | **Repository** | <https://github.com/naman-c25/mini-job-queue-dashboard> |
+
+Try the concurrency behaviour on the live site: open the dashboard in two tabs, let both show the same `pending` job, then press **Start** in both. One succeeds; the other is told the job already moved on, and re-syncs itself.
 
 ---
 
@@ -93,6 +95,7 @@ The dashboard comes up on <http://localhost:5173>.
 | `PORT` | no | Defaults to `3000`. |
 | `CORS_ORIGIN` | no | Comma-separated allowed origins. Unset reflects any origin (development). |
 | `DB_LOGGING` | no | `true` logs every SQL statement. |
+| `DB_RUN_MIGRATIONS` | no | Defaults to running migrations on boot. Set `false` where the connection goes through a transaction-mode pooler. |
 
 **frontend/.env**
 
@@ -246,6 +249,30 @@ The table deliberately has **no foreign key** onto `jobs`. An audit record has t
 - **Compare-and-swap over `SELECT … FOR UPDATE`.** Pessimistic locking would also be correct. CAS was chosen because it takes no lock while the request is thinking, and because `affected === 0` is a clean, explicit signal that a race occurred rather than something inferred.
 - **The transition map is duplicated in the frontend.** A small amount of drift risk in exchange for a UI that never renders a button it knows will fail. The server is authoritative, so drift degrades the UX and never the data. The API exposes the map at `GET /` if the UI should later derive it instead.
 - **The e2e tests need a real database.** They run against actual Postgres rather than a mock, because the behaviour under test *is* database behaviour — a fake would prove nothing about whether the compare-and-swap holds. The cost is that `npm run test:e2e` needs `DATABASE_URL` set (it skips cleanly without one) and takes ~17s rather than milliseconds.
+
+---
+
+## Deployment
+
+Both halves run on Vercel as separate projects, deployed from this one repository.
+
+| | |
+|---|---|
+| `frontend/` | Static Vite build. `VITE_API_URL` points at the API. |
+| `backend/` | NestJS behind a serverless function (`api/index.js`), rewritten from every path. |
+| Database | Neon Postgres, using the **pooled** (`-pooler`) connection string. |
+
+Three things were needed to make a NestJS app behave on a serverless platform, and each one is a decision rather than a workaround:
+
+**1. `pg` is imported explicitly.** TypeORM resolves its driver with a dynamic `require('pg')`. Vercel's file tracer only follows static imports, so the driver was silently dropped from the bundle and the app died at boot with *"Postgres package has not been found installed"*. A single `import 'pg'` in [`app.module.ts`](backend/src/app.module.ts) keeps it in the deployment.
+
+**2. `abortOnError: false`.** Nest's default is to *terminate the process* when initialisation fails. On a serverless platform that converts any startup error into an opaque `FUNCTION_INVOCATION_FAILED` with no stack trace — a try/catch cannot see it, because nothing was thrown. Turning it off in [`serverless.ts`](backend/src/serverless.ts) meant the failure above could be diagnosed in one deploy instead of guessed at.
+
+**3. The pool is sized for the platform.** Serverless instances multiply with traffic, and each one holding a ten-connection pool open would exhaust the database's connection limit for no benefit. The app detects `VERCEL` and drops to two, paired with Neon's pooled endpoint. Migrations are disabled there (`DB_RUN_MIGRATIONS=false`) because migration locking is a session-level operation and the pooler runs in transaction mode; the schema is applied from a direct connection instead.
+
+The bootstrapped app is cached across invocations, and the *promise* is cached rather than the resolved app — two requests can hit a cold instance at once, and the second should wait for the first bootstrap rather than start a competing one.
+
+The repository also carries a [`Dockerfile`](backend/Dockerfile), a [`render.yaml`](render.yaml) blueprint and a [`railway.json`](backend/railway.json), so the backend can run as an ordinary long-running server on any container host without changes — `main.ts` is that entry point, and it is what local development and the tests use.
 
 ---
 

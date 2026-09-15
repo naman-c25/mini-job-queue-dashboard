@@ -1,10 +1,11 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
+import { configureApp } from '../src/configure-app.js';
 import { Job } from '../src/jobs/entities/job.entity.js';
 import { JobStatus } from '../src/jobs/job-status.js';
 
@@ -24,10 +25,9 @@ describe.skipIf(!hasDatabase)('Jobs API (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
     app = moduleRef.createNestApplication();
-    // Mirror main.ts so the tests exercise the same validation as production.
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-    );
+    // The same configuration every deployed entry point uses, so these tests
+    // exercise production's validation rather than a copy of it.
+    configureApp(app);
     await app.init();
 
     dataSource = app.get(DataSource);
